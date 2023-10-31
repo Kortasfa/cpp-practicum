@@ -5,14 +5,14 @@
 void init(sf::ConvexShape &pointer)
 {
     pointer.setPointCount(7);
-    pointer.setPoint(0, {20, -100});        
-    pointer.setPoint(1, {20, -40});         
-    pointer.setPoint(2, {50, -40});         
-    pointer.setPoint(3, {0, 0});            
-    pointer.setPoint(4, {-50, -40});        
-    pointer.setPoint(5, {-20, -40});        
-    pointer.setPoint(6, {-20, -100});  
-    
+    pointer.setPoint(0, {60, 0});
+    pointer.setPoint(1, {0, -60});
+    pointer.setPoint(2, {0, -30});
+    pointer.setPoint(3, {-70, -30});
+    pointer.setPoint(4, {-70, 30});
+    pointer.setPoint(5, {0, 30});
+    pointer.setPoint(6, {0, 60});
+
     pointer.setPosition({400, 300});
     pointer.setFillColor(sf::Color::Yellow);
     pointer.setOutlineColor(sf::Color::Black);
@@ -36,47 +36,58 @@ void pollEvents(sf::RenderWindow &window, sf::Vector2f &mousePosition)
     {
         switch (event.type)
         {
-        case sf::Event::Closed:
-            window.close();
-            break;
-        case sf::Event::MouseMoved:
-            onMouseMove(event.mouseMove, mousePosition);
-            break;
-        default:
-            break;
+            case sf::Event::Closed:
+                window.close();
+                break;
+            case sf::Event::MouseMoved:
+                onMouseMove(event.mouseMove, mousePosition);
+                break;
+            default:
+                break;
         }
     }
 }
 
-float getAngleDifference(float angle1, float angle2)
+void update(const sf::Vector2f &mousePosition, sf::ConvexShape &arrow, sf::Clock &clock)
 {
-    float difference = fmod(angle2 - angle1 + 90.0f, 360.0f) - 180.0f;
-    if (difference <= -180.0f)
-        difference += 360.0f;
-    return difference;
-}
 
-void update(const sf::Vector2f &mousePosition, sf::ConvexShape &pointer, sf::Clock &clock)
-{
-    const float elapsedTime = clock.restart().asSeconds();
-    
-    const sf::Vector2f delta = mousePosition - pointer.getPosition();
-    const float distance = sqrt(delta.x * delta.x + delta.y * delta.y);
-    const float angleToMouse = toDegrees(atan2(delta.y, delta.x));
-    
-    const float maxAngleChange = 90.0f * elapsedTime; // 90 degrees per second
-    const float angleDifference = getAngleDifference(pointer.getRotation(), angleToMouse);
-    const float angleChange = std::clamp(angleDifference, -maxAngleChange, maxAngleChange);
-    
-    pointer.setRotation(pointer.getRotation() + angleChange);
+    const float dTime = clock.restart().asSeconds();
+    constexpr float maxRotationSpeed = 90.0f;
+    constexpr float speed = 20.0f;
 
-    if (distance > 1.0f)
+    const sf::Vector2f motion = mousePosition - arrow.getPosition();
+    const float targetRotation = toDegrees(atan2(motion.y, motion.x));
+    float currentRotation = arrow.getRotation();
+
+    float rotationDiff = targetRotation - currentRotation;
+    if (rotationDiff > 180.0)
     {
-        const float maxDistanceChange = 20.0f * elapsedTime; // 20 pixels per second
-        const sf::Vector2f direction = delta / distance;
-        const sf::Vector2f moveAmount = direction * std::min(distance, maxDistanceChange);
-        
-        pointer.move(moveAmount);
+        rotationDiff -= 360.0;
+    }
+    else if (rotationDiff < -180.0)
+    {
+        rotationDiff += 360.0;
+    }
+
+    float maxRotationDiff = maxRotationSpeed * dTime;
+    rotationDiff = std::clamp(rotationDiff, -maxRotationDiff, maxRotationDiff);
+
+    arrow.setRotation(currentRotation + rotationDiff);
+
+    const float offset = speed * dTime;
+    const sf::Vector2f direction =
+            {
+                    (motion.x / std::abs(std::sqrt(motion.x * motion.x + motion.y * motion.y))),
+                    (motion.y / std::abs(std::sqrt(motion.x * motion.x + motion.y * motion.y)))};
+
+    sf::Vector2f newPosition = arrow.getPosition() + direction * offset;
+
+    if ((newPosition.x <= mousePosition.x && newPosition.y <= mousePosition.y) ||
+        (newPosition.x >= mousePosition.x && newPosition.y <= mousePosition.y) ||
+        (newPosition.x <= mousePosition.x && newPosition.y >= mousePosition.y) ||
+        (newPosition.x >= mousePosition.x && newPosition.y >= mousePosition.y))
+    {
+        arrow.setPosition(newPosition);
     }
 }
 
@@ -95,8 +106,8 @@ int main()
     sf::ContextSettings settings;
     settings.antialiasingLevel = 8;
     sf::RenderWindow window(
-        sf::VideoMode({WINDOW_WIDTH, WINDOW_HEIGHT}),
-        "Pointer follows mouse", sf::Style::Default, settings);
+            sf::VideoMode({WINDOW_WIDTH, WINDOW_HEIGHT}),
+            "Pointer follows mouse", sf::Style::Default, settings);
 
     sf::ConvexShape pointer;
     sf::Vector2f mousePosition;
